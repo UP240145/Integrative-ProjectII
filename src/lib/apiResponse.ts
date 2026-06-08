@@ -1,0 +1,14 @@
+/**
+ * src/lib/apiResponse.ts
+ *
+ * Helpers para construir respuestas JSON consistentes en las Route Handlers.
+ */
+import { NextResponse } from "next/server";
+
+export function ok<T>(data: T, status = 200) {
+  return NextResponse.json({ ok: true, data }, { status });
+}
+
+export function err(message: string, status = 400) {
+  return NextResponse.json({ ok: false, message }, { status });
+}
