@@ -18,6 +18,12 @@ const MODULES = [
     color: "#89b4e8",
   },
   {
+    href: "/citas",
+    title: "Citas",
+    description: "Agendar citas y consultar el calendario de visitas",
+    color: "#b89ac8",
+  },
+  {
     href: "/configuracion",
     title: "Configuración",
     description: "Administrar usuarios y ajustes del sistema",
