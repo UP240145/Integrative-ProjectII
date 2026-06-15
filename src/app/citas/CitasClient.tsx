@@ -10,6 +10,7 @@ interface Client {
   full_name: string;
   phone: string | null;
   email: string | null;
+  address: string | null;
 }
 
 interface Appointment {
@@ -160,6 +161,8 @@ function AgendarCita() {
 
     setSaving(true);
     setError(null);
+    // Si no se proporcionó dirección, usar la del cliente
+    const finalAddress = address.trim() || selectedClient.address || null;
     try {
       const res = await fetch("/api/appointments", {
         method: "POST",
@@ -169,8 +172,8 @@ function AgendarCita() {
           appointment_type: apptType,
           appointment_date: apptDate,
           appointment_time: apptTime,
-          address,
-          notes,
+          address:          finalAddress,
+          notes:            notes.trim() || null,
         }),
       });
       const json = await res.json();
@@ -322,6 +325,13 @@ function AgendarCita() {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <FieldInline label="Dirección de la cita">
             <input style={inputStyle} type="text" placeholder="Calle, colonia, ciudad" value={address} onChange={(e) => setAddress(e.target.value)} />
+            <span style={{ fontSize: 11, color: "#bbb", marginTop: 2 }}>
+              {address.trim()
+                ? ""
+                : selectedClient?.address
+                ? `Si se deja vacío se usará: ${selectedClient.address}`
+                : "Opcional — puedes ingresarla manualmente"}
+            </span>
           </FieldInline>
           <FieldInline label="Notas">
             <textarea style={{ ...inputStyle, resize: "vertical", minHeight: 72, lineHeight: 1.5 }} placeholder="Instrucciones especiales, referencias..." value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -608,7 +618,8 @@ function ClientSearch({ selectedClient, onSelect, onClear }: {
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 500, fontSize: 14, color: "#1a1a18" }}>{selectedClient.full_name}</div>
-          {selectedClient.phone && <div style={{ fontSize: 12, color: "#999" }}>📞 {selectedClient.phone}</div>}
+          {selectedClient.phone   && <div style={{ fontSize: 12, color: "#999" }}>📞 {selectedClient.phone}</div>}
+          {selectedClient.address && <div style={{ fontSize: 12, color: "#bbb" }}>📍 {selectedClient.address}</div>}
         </div>
         <button onClick={onClear} style={{ background: "transparent", border: "1px solid #e0dbd4", borderRadius: 6, padding: "4px 12px", fontSize: 12, color: "#888", cursor: "pointer", fontFamily: "inherit" }}>
           Cambiar

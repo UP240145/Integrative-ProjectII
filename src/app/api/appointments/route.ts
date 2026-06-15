@@ -132,11 +132,19 @@ export async function POST(req: NextRequest) {
     if ((clients as unknown[]).length === 0)
       return NextResponse.json({ ok: false, message: "Cliente no encontrado" }, { status: 404 });
 
+    // Si no se dio dirección, usar la del cliente
+    let finalAddress = address || null;
+    if (!finalAddress) {
+      const [clientRows] = await pool.query("SELECT address FROM Client WHERE id_client = ?", [id_client]);
+      const clientData = clientRows as { address: string | null }[];
+      finalAddress = clientData[0]?.address ?? null;
+    }
+
     // Insertar
     const [result] = await pool.query(
       `INSERT INTO appointments (id_client, appointment_type, appointment_date, appointment_time, address, notes)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [id_client, appointment_type, appointment_date, appointment_time, address || null, notes || null]
+      [id_client, appointment_type, appointment_date, appointment_time, finalAddress, notes || null]
     );
 
     const insertId = (result as { insertId: number }).insertId;
