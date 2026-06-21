@@ -156,6 +156,7 @@ async function createClient(data: NewClientForm): Promise<Client> {
 async function saveQuote(payload: {
   id_client: number;
   furniture_type: string;
+  material: string;
   width: number;
   height: number;
   depth: number;
@@ -580,6 +581,7 @@ export default function QuotePage() {
       const result = await saveQuote({
         id_client:       selectedClient.id_client,
         furniture_type:  form.furnitureType,
+        material:        form.material,
         width:           parseFloat(form.width),
         height:          parseFloat(form.height),
         depth:           parseFloat(form.depth),

@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     let sql = `
       SELECT
         wo.id_work_order, wo.status, wo.updated_at,
-        q.id_quote, q.furniture_type, q.final_price, q.width, q.height, q.depth,
+        q.id_quote, q.furniture_type, q.material, q.final_price, q.width, q.height, q.depth, q.notes,
         c.id_client, c.full_name, c.phone, c.address
       FROM work_orders wo
       JOIN Quote  q ON q.id_quote  = wo.id_quote
@@ -66,12 +66,35 @@ export async function POST(req: NextRequest) {
     if (quoteList[0].status !== "aceptada")
       return NextResponse.json({ ok: false, message: "Solo se pueden crear órdenes para cotizaciones aceptadas" }, { status: 400 });
 
-    // Evitar duplicados
-    const [existing] = await pool.query("SELECT id_work_order FROM work_orders WHERE id_quote = ?", [id_quote]);
-    const existingList = existing as { id_work_order: number }[];
+    // Verificar si ya existe una orden para esta cotización
+    const [existing] = await pool.query(
+      "SELECT id_work_order, status FROM work_orders WHERE id_quote = ?",
+      [id_quote]
+    );
+    const existingList = existing as { id_work_order: number; status: string }[];
 
     if (existingList.length > 0) {
-      return NextResponse.json({ ok: true, data: { id_work_order: existingList[0].id_work_order, alreadyExists: true } });
+      const existingOrder = existingList[0];
+
+      // Si la orden existente está cancelada, la reactivamos en vez de bloquear
+      if (existingOrder.status === "cancelada") {
+        await pool.query(
+          "UPDATE work_orders SET status = 'pendiente' WHERE id_work_order = ?",
+          [existingOrder.id_work_order]
+        );
+        const [rows] = await pool.query(
+          `SELECT wo.id_work_order, wo.status, wo.updated_at, q.furniture_type, q.final_price, c.full_name
+           FROM work_orders wo
+           JOIN Quote  q ON q.id_quote  = wo.id_quote
+           JOIN Client c ON c.id_client = q.id_client
+           WHERE wo.id_work_order = ?`,
+          [existingOrder.id_work_order]
+        );
+        return NextResponse.json({ ok: true, data: (rows as unknown[])[0] });
+      }
+
+      // Si ya existe pendiente o completada, no se duplica
+      return NextResponse.json({ ok: true, data: { id_work_order: existingOrder.id_work_order, alreadyExists: true } });
     }
 
     const [result] = await pool.query(

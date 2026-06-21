@@ -10,6 +10,7 @@ interface PendingQuote {
   full_name: string;
   phone: string | null;
   furniture_type: string;
+  material: string | null;
   width: number;
   height: number;
   depth: number;
@@ -30,6 +31,10 @@ const FURNITURE_LABELS: Record<string, string> = {
   otro: "Otro",
 };
 
+const MATERIAL_LABELS: Record<string, string> = {
+  mdf: "MDF", melamina: "Melamina", pino: "Pino macizo", roble: "Roble", cedro: "Cedro",
+};
+
 function formatMXN(value: number): string {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 }
@@ -38,6 +43,7 @@ function formatMXN(value: number): string {
 
 export default function CotizacionesPendientesClient() {
   const router = useRouter();
+  const [statusTab, setStatusTab] = useState<"pendiente" | "aceptada">("pendiente");
   const [quotes, setQuotes]     = useState<PendingQuote[]>([]);
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState("");
@@ -48,13 +54,13 @@ export default function CotizacionesPendientesClient() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/quotes?status=pendiente");
+      const res = await fetch(`/api/quotes?status=${statusTab}`);
       const json = await res.json();
       setQuotes(json.data ?? []);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [statusTab]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -151,10 +157,27 @@ export default function CotizacionesPendientesClient() {
       {/* Content */}
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "32px 24px 80px" }}>
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 22, fontWeight: 600, color: "#1c1c1a" }}>Cotizaciones pendientes</div>
-          <div style={{ fontSize: 13, color: "#aaa", marginTop: 4 }}>
-            {quotes.length} {quotes.length === 1 ? "cotización en espera" : "cotizaciones en espera"} de respuesta del cliente
+          <div style={{ fontSize: 22, fontWeight: 600, color: "#1c1c1a" }}>
+            {statusTab === "pendiente" ? "Cotizaciones pendientes" : "Cotizaciones aceptadas"}
           </div>
+          <div style={{ fontSize: 13, color: "#aaa", marginTop: 4 }}>
+            {statusTab === "pendiente"
+              ? `${quotes.length} ${quotes.length === 1 ? "cotización en espera" : "cotizaciones en espera"} de respuesta del cliente`
+              : `${quotes.length} ${quotes.length === 1 ? "cotización aceptada" : "cotizaciones aceptadas"}`}
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          {([
+            { value: "pendiente", label: "Pendientes" },
+            { value: "aceptada",  label: "Aceptadas" },
+          ] as const).map(t => (
+            <button key={t.value} onClick={() => setStatusTab(t.value)}
+              style={{ padding: "9px 22px", borderRadius: 10, border: `1px solid ${statusTab === t.value ? "#1c1c1a" : "#e0dbd4"}`, background: statusTab === t.value ? "#1c1c1a" : "transparent", color: statusTab === t.value ? "#e8e4dc" : "#888", fontSize: 13, fontWeight: statusTab === t.value ? 500 : 400, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {/* Search */}
@@ -204,7 +227,9 @@ export default function CotizacionesPendientesClient() {
                       </div>
                     </div>
                     <div style={{ fontSize: 13, color: "#666", marginLeft: 44 }}>
-                      {FURNITURE_LABELS[q.furniture_type] ?? q.furniture_type} · {q.width}×{q.height}×{q.depth} cm
+                      {FURNITURE_LABELS[q.furniture_type] ?? q.furniture_type}
+                      {q.material && <> · {MATERIAL_LABELS[q.material] ?? q.material}</>}
+                      {" "}· {q.width}×{q.height}×{q.depth} cm
                     </div>
                     <div style={{ fontSize: 11, color: "#bbb", marginLeft: 44, marginTop: 2 }}>
                       Cotizado el {new Date(q.created_at).toLocaleDateString("es-MX")}
@@ -221,22 +246,28 @@ export default function CotizacionesPendientesClient() {
                     <div style={{ fontSize: 20, fontWeight: 600, color: "#1c1c1a", marginBottom: 10 }}>
                       {formatMXN(q.final_price)}
                     </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button
-                        onClick={() => handleReject(q)}
-                        disabled={updatingId === q.id_quote}
-                        style={{ padding: "7px 16px", border: "1px solid #e9a0a0", borderRadius: 8, background: "transparent", fontSize: 12, color: "#c0392b", cursor: updatingId === q.id_quote ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: updatingId === q.id_quote ? 0.5 : 1 }}
-                      >
-                        Rechazar
-                      </button>
-                      <button
-                        onClick={() => handleAccept(q)}
-                        disabled={updatingId === q.id_quote}
-                        style={{ padding: "7px 16px", border: "none", borderRadius: 8, background: updatingId === q.id_quote ? "#ccc" : "#1c1c1a", fontSize: 12, color: "#e8e4dc", cursor: updatingId === q.id_quote ? "not-allowed" : "pointer", fontFamily: "inherit", fontWeight: 500 }}
-                      >
-                        {updatingId === q.id_quote ? "Procesando..." : "✓ Aceptar"}
-                      </button>
-                    </div>
+                    {statusTab === "pendiente" ? (
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          onClick={() => handleReject(q)}
+                          disabled={updatingId === q.id_quote}
+                          style={{ padding: "7px 16px", border: "1px solid #e9a0a0", borderRadius: 8, background: "transparent", fontSize: 12, color: "#c0392b", cursor: updatingId === q.id_quote ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: updatingId === q.id_quote ? 0.5 : 1 }}
+                        >
+                          Rechazar
+                        </button>
+                        <button
+                          onClick={() => handleAccept(q)}
+                          disabled={updatingId === q.id_quote}
+                          style={{ padding: "7px 16px", border: "none", borderRadius: 8, background: updatingId === q.id_quote ? "#ccc" : "#1c1c1a", fontSize: 12, color: "#e8e4dc", cursor: updatingId === q.id_quote ? "not-allowed" : "pointer", fontFamily: "inherit", fontWeight: 500 }}
+                        >
+                          {updatingId === q.id_quote ? "Procesando..." : "✓ Aceptar"}
+                        </button>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 11, padding: "5px 12px", borderRadius: 20, background: "#f0f9f0", color: "#2d6a2d", border: "1px solid #7bbf7b", fontWeight: 500 }}>
+                        ✓ Aceptada
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

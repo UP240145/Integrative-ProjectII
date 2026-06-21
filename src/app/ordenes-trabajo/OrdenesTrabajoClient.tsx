@@ -11,10 +11,12 @@ interface WorkOrder {
   updated_at: string;
   id_quote: number;
   furniture_type: string;
+  material: string | null;
   final_price: number;
   width: number;
   height: number;
   depth: number;
+  notes: string | null;
   id_client: number;
   full_name: string;
   phone: string | null;
@@ -31,9 +33,14 @@ const FURNITURE_LABELS: Record<string, string> = {
   cama: "Cama", estanteria: "Estantería", bano: "Mueble de baño", otro: "Otro",
 };
 
+const MATERIAL_LABELS: Record<string, string> = {
+  mdf: "MDF", melamina: "Melamina", pino: "Pino macizo", roble: "Roble", cedro: "Cedro",
+};
+
 const STATUS_LABELS: Record<string, { label: string; bg: string; color: string; border: string }> = {
   pendiente:   { label: "Pendiente",   bg: "#fffcf5", color: "#8a6f3e", border: "#c8b89a" },
   completada:  { label: "Completada",  bg: "#f0f9f0", color: "#2d6a2d", border: "#7bbf7b" },
+  cancelada:   { label: "Cancelada",   bg: "#fdf0f0", color: "#8a2020", border: "#e9a0a0" },
 };
 
 function formatMXN(value: number): string {
@@ -54,7 +61,9 @@ export default function OrdenesTrabajoClient() {
   const [search, setSearch]   = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("pendiente");
   const [completingOrder, setCompletingOrder] = useState<WorkOrder | null>(null);
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -84,6 +93,22 @@ export default function OrdenesTrabajoClient() {
     setSuccess("Orden completada y cita de entrega agendada correctamente");
     setOrders(prev => prev.filter(o => o.id_work_order !== orderId));
     setCompletingOrder(null);
+  }
+
+  async function handleCancel(order: WorkOrder) {
+    if (!confirm(`¿Cancelar la orden de trabajo de ${order.full_name}? La cotización volverá a estado pendiente.`)) return;
+    setCancellingId(order.id_work_order);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch(`/api/work-orders/${order.id_work_order}/cancel`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) { setError(json.message); return; }
+      setSuccess(`Orden cancelada. La cotización de ${order.full_name} volvió a estado pendiente.`);
+      setOrders(prev => prev.filter(o => o.id_work_order !== order.id_work_order));
+    } finally {
+      setCancellingId(null);
+    }
   }
 
   return (
@@ -135,6 +160,7 @@ export default function OrdenesTrabajoClient() {
             {[
               { value: "pendiente", label: "Pendientes" },
               { value: "completada", label: "Completadas" },
+              { value: "cancelada", label: "Canceladas" },
               { value: "todas", label: "Todas" },
             ].map(f => (
               <button key={f.value} onClick={() => setStatusFilter(f.value)}
@@ -148,6 +174,11 @@ export default function OrdenesTrabajoClient() {
         {success && (
           <div style={{ background: "#f0f9f0", border: "1px solid #7bbf7b", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#2d6a2d", marginBottom: 16 }}>
             ✓ {success}
+          </div>
+        )}
+        {error && (
+          <div style={{ background: "#fdf0f0", border: "1px solid #e9a0a0", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#8a2020", marginBottom: 16 }}>
+            ⚠ {error}
           </div>
         )}
 
@@ -179,11 +210,18 @@ export default function OrdenesTrabajoClient() {
                         </span>
                       </div>
                       <div style={{ fontSize: 13, color: "#666", marginLeft: 44 }}>
-                        {FURNITURE_LABELS[o.furniture_type] ?? o.furniture_type} · {o.width}×{o.height}×{o.depth} cm
+                        {FURNITURE_LABELS[o.furniture_type] ?? o.furniture_type}
+                        {o.material && <> · {MATERIAL_LABELS[o.material] ?? o.material}</>}
+                        {" "}· {o.width}×{o.height}×{o.depth} cm
                       </div>
                       <div style={{ fontSize: 11, color: "#bbb", marginLeft: 44, marginTop: 2 }}>
                         Orden #{o.id_work_order} · Cotización #{o.id_quote} · Actualizada el {new Date(o.updated_at).toLocaleDateString("es-MX")}
                       </div>
+                      {o.notes && (
+                        <div style={{ fontSize: 12, color: "#aaa", marginLeft: 44, marginTop: 6, fontStyle: "italic" }}>
+                          "{o.notes}"
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -191,12 +229,21 @@ export default function OrdenesTrabajoClient() {
                         {formatMXN(o.final_price)}
                       </div>
                       {o.status === "pendiente" && (
-                        <button
-                          onClick={() => setCompletingOrder(o)}
-                          style={{ padding: "8px 18px", border: "none", borderRadius: 8, background: "#1c1c1a", fontSize: 12, color: "#e8e4dc", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
-                        >
-                          ✓ Terminado
-                        </button>
+                        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                          <button
+                            onClick={() => handleCancel(o)}
+                            disabled={cancellingId === o.id_work_order}
+                            style={{ padding: "8px 14px", border: "1px solid #e9a0a0", borderRadius: 8, background: "transparent", fontSize: 12, color: "#c0392b", cursor: cancellingId === o.id_work_order ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: cancellingId === o.id_work_order ? 0.5 : 1 }}
+                          >
+                            {cancellingId === o.id_work_order ? "Cancelando..." : "Cancelar"}
+                          </button>
+                          <button
+                            onClick={() => setCompletingOrder(o)}
+                            style={{ padding: "8px 18px", border: "none", borderRadius: 8, background: "#1c1c1a", fontSize: 12, color: "#e8e4dc", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
+                          >
+                            ✓ Terminado
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>

@@ -364,6 +364,7 @@ function CalendarioCitas() {
   const [dayAppts, setDayAppts]           = useState<Appointment[]>([]);
   const [loadingDay, setLoadingDay]       = useState(false);
   const [deletingId, setDeletingId]       = useState<number | null>(null);
+  const [reschedulingAppt, setReschedulingAppt] = useState<Appointment | null>(null);
 
   const year  = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -408,12 +409,20 @@ function CalendarioCitas() {
     if (!confirm("¿Cancelar esta cita?")) return;
     setDeletingId(id);
     try {
-      await fetch(`/api/appointments/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/appointments/${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) { alert(json.message); return; }
       setDayAppts(prev => prev.filter(a => a.id_appointment !== id));
       setAppointments(prev => prev.filter(a => a.id_appointment !== id));
     } finally {
       setDeletingId(null);
     }
+  }
+
+  function handleRescheduled(updated: Appointment) {
+    setDayAppts(prev => prev.map(a => a.id_appointment === updated.id_appointment ? updated : a));
+    setAppointments(prev => prev.map(a => a.id_appointment === updated.id_appointment ? updated : a));
+    setReschedulingAppt(null);
   }
 
   const MONTHS_ES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
@@ -535,13 +544,22 @@ function CalendarioCitas() {
                           {a.appointment_time.slice(0,5)} · {type?.duration}
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleDelete(a.id_appointment)}
-                        disabled={deletingId === a.id_appointment}
-                        style={{ background: "transparent", border: "none", color: "#c0392b", fontSize: 12, cursor: "pointer", fontFamily: "inherit", padding: "4px 8px", borderRadius: 6, opacity: deletingId === a.id_appointment ? 0.5 : 1 }}
-                      >
-                        {deletingId === a.id_appointment ? "..." : "Cancelar"}
-                      </button>
+                      {a.appointment_type === "entregar" ? (
+                        <button
+                          onClick={() => setReschedulingAppt(a)}
+                          style={{ background: "transparent", border: "none", color: "#2d4a8a", fontSize: 12, cursor: "pointer", fontFamily: "inherit", padding: "4px 8px", borderRadius: 6 }}
+                        >
+                          Reagendar
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleDelete(a.id_appointment)}
+                          disabled={deletingId === a.id_appointment}
+                          style={{ background: "transparent", border: "none", color: "#c0392b", fontSize: 12, cursor: "pointer", fontFamily: "inherit", padding: "4px 8px", borderRadius: 6, opacity: deletingId === a.id_appointment ? 0.5 : 1 }}
+                        >
+                          {deletingId === a.id_appointment ? "..." : "Cancelar"}
+                        </button>
+                      )}
                     </div>
                     <div style={{ padding: "10px 14px" }}>
                       <div style={{ fontSize: 13, fontWeight: 500, color: "#1c1c1a" }}>{a.full_name}</div>
@@ -554,6 +572,174 @@ function CalendarioCitas() {
               })}
             </div>
           )}
+        </div>
+      </div>
+
+      {reschedulingAppt && (
+        <RescheduleModal
+          appointment={reschedulingAppt}
+          onClose={() => setReschedulingAppt(null)}
+          onSuccess={handleRescheduled}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Reschedule modal (solo para citas tipo "entregar") ────────────────────────
+
+function RescheduleModal({ appointment, onClose, onSuccess }: {
+  appointment: Appointment;
+  onClose: () => void;
+  onSuccess: (updated: Appointment) => void;
+}) {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const year  = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const MONTHS_ES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const DAYS_ES = ["D","L","M","M","J","V","S"];
+
+  function dateStr(day: number) {
+    return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+
+  function selectDay(day: number) {
+    const ds = dateStr(day);
+    if (ds < todayStr) return;
+    setSelectedDate(ds);
+    setSelectedTime(null);
+    setLoadingSlots(true);
+    fetch(`/api/appointments/availability?date=${ds}&type=entregar`)
+      .then(r => r.json())
+      .then(j => setSlots(j.data ?? []))
+      .finally(() => setLoadingSlots(false));
+  }
+
+  async function handleConfirm() {
+    if (!selectedDate) { setError("Selecciona una fecha"); return; }
+    if (!selectedTime) { setError("Selecciona un horario"); return; }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/appointments/${appointment.id_appointment}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointment_date: selectedDate, appointment_time: selectedTime }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.message); return; }
+      onSuccess(json.data);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(28,28,26,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }}>
+      <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto" }}>
+
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid #f0ece6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: "#1c1c1a" }}>Reagendar entrega</div>
+            <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>
+              {appointment.full_name} · Actualmente: {appointment.appointment_date.slice(0,10)} a las {appointment.appointment_time.slice(0,5)}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", fontSize: 20, color: "#aaa", cursor: "pointer" }}>×</button>
+        </div>
+
+        <div style={{ padding: "20px 24px" }}>
+          <div style={{ border: "1px solid #e8e3db", borderRadius: 12, overflow: "hidden", marginBottom: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#faf9f7", borderBottom: "1px solid #f0ece6" }}>
+              <button onClick={() => setCurrentDate(new Date(year, month - 1, 1))} style={{ background: "transparent", border: "none", fontSize: 16, cursor: "pointer", color: "#666" }}>‹</button>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#1c1c1a" }}>{MONTHS_ES[month]} {year}</div>
+              <button onClick={() => setCurrentDate(new Date(year, month + 1, 1))} style={{ background: "transparent", border: "none", fontSize: 16, cursor: "pointer", color: "#666" }}>›</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: "8px 8px 0" }}>
+              {DAYS_ES.map((d, i) => (
+                <div key={i} style={{ textAlign: "center", fontSize: 10, color: "#aaa", fontWeight: 500, padding: "4px 0" }}>{d}</div>
+              ))}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: "0 8px 8px" }}>
+              {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const ds = dateStr(day);
+                const isPast = ds < todayStr;
+                const isSelected = ds === selectedDate;
+                const isToday = ds === todayStr;
+                return (
+                  <button key={day} onClick={() => selectDay(day)} disabled={isPast}
+                    style={{
+                      aspectRatio: "1", margin: 2, border: "none", borderRadius: 8,
+                      background: isSelected ? "#1c1c1a" : isToday ? "#f5f3ef" : "transparent",
+                      color: isPast ? "#ddd" : isSelected ? "#e8e4dc" : "#444",
+                      fontSize: 13, fontWeight: isSelected || isToday ? 600 : 400,
+                      cursor: isPast ? "not-allowed" : "pointer",
+                      fontFamily: "inherit",
+                    }}>
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {selectedDate && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.07em", color: "#888", marginBottom: 10 }}>
+                Nuevo horario (10:00am – 4:00pm)
+              </div>
+              {loadingSlots ? (
+                <div style={{ fontSize: 13, color: "#bbb" }}>Cargando horarios...</div>
+              ) : (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {slots.map(slot => (
+                    <button key={slot.time} disabled={!slot.available}
+                      onClick={() => { setSelectedTime(slot.time); setError(null); }}
+                      style={{
+                        padding: "7px 14px", borderRadius: 8,
+                        border: selectedTime === slot.time ? "1px solid #1c1c1a" : slot.available ? "1px solid #e0dbd4" : "1px solid #f0ece6",
+                        background: selectedTime === slot.time ? "#1c1c1a" : slot.available ? "#fff" : "#f5f3ef",
+                        color: selectedTime === slot.time ? "#e8e4dc" : slot.available ? "#444" : "#ccc",
+                        fontSize: 13, cursor: slot.available ? "pointer" : "not-allowed",
+                        fontFamily: "inherit", textDecoration: slot.available ? "none" : "line-through",
+                      }}>
+                      {slot.time}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div style={{ background: "#fdf0f0", border: "1px solid #e9a0a0", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#8a2020", marginBottom: 16 }}>
+              ⚠ {error}
+            </div>
+          )}
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <button onClick={onClose} style={{ padding: "10px 20px", border: "1px solid #e0dbd4", borderRadius: 10, background: "transparent", color: "#888", fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
+              Cancelar
+            </button>
+            <button onClick={handleConfirm} disabled={saving || !selectedDate || !selectedTime}
+              style={{ padding: "10px 28px", border: "none", borderRadius: 10, background: (saving || !selectedDate || !selectedTime) ? "#ccc" : "#1c1c1a", color: "#e8e4dc", fontSize: 14, fontWeight: 500, cursor: (saving || !selectedDate || !selectedTime) ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+              {saving ? "Guardando..." : "Confirmar nuevo horario"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
