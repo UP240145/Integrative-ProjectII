@@ -6,10 +6,16 @@ interface Props { email: string }
 
 const MODULES = [
   {
-    href: "/cotizaciones",
+    href: "/cotizaciones-pendientes",
     title: "Cotizaciones",
-    description: "Crear y gestionar cotizaciones para clientes",
+    description: "Ver pendientes y crear nuevas cotizaciones",
     color: "#c8b89a",
+  },
+  {
+    href: "/ordenes-trabajo",
+    title: "Órdenes de trabajo",
+    description: "Seguimiento de fabricación y entregas",
+    color: "#d49a5a",
   },
   {
     href: "/clientes",

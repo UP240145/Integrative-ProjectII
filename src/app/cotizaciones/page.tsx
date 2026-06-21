@@ -250,10 +250,16 @@ function TopBar({ quoteId, onBack }: { quoteId: string; onBack: () => void }) {
           <path d="M2 20h20" stroke="#c8b89a" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
         <span style={{ color: "#e8e4dc", fontWeight: 500, fontSize: 15, letterSpacing: "0.04em" }}>
-          Escencia Madera &nbsp;<span style={{ color: "#555", fontWeight: 400 }}>/ Cotizaciones</span>
+          Escencia Madera &nbsp;<span style={{ color: "#555", fontWeight: 400 }}>/ Nueva cotización</span>
         </span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <a
+          href="/cotizaciones-pendientes"
+          style={{ fontSize: 12, color: "#c8b89a", textDecoration: "none", padding: "5px 12px", border: "1px solid #444", borderRadius: 7 }}
+        >
+          Ver pendientes
+        </a>
         <div style={{
           background: "#2e2e2b",
           color: "#c8b89a",
@@ -387,7 +393,7 @@ function ClientSearch({ selectedClient, onSelect, onClear }: ClientSearchProps) 
   }
 
   return (
-    <div ref={wrapperRef} style={{ position: "relative" }}>
+    <div ref={wrapperRef} style={{ position: "relative", zIndex: 100 }}>
       <div style={{ position: "relative" }}>
         <input
           style={{ ...inputStyle, paddingLeft: 34 }}
@@ -505,7 +511,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid #e8e3db", borderRadius: 14, marginBottom: 16, overflow: "hidden" }}>
+    <div style={{ background: "#fff", border: "1px solid #e8e3db", borderRadius: 14, marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 20px", borderBottom: "1px solid #f0ece6", background: "#faf9f7" }}>
         <span style={{ fontSize: 13, fontWeight: 500, color: "#444", letterSpacing: "0.01em" }}>{title}</span>
       </div>
@@ -584,20 +590,20 @@ export default function QuotePage() {
       });
       setSavedQuoteId(result.id_quote);
       setSaved(true);
+
+      // Si la cotización se guarda como "aceptada", crear la orden de trabajo automáticamente
+      if (form.status === "aceptada") {
+        try {
+          await createWorkOrderAPI(result.id_quote);
+          setWorkOrderCreated(true);
+        } catch (woErr: unknown) {
+          setSaveError(woErr instanceof Error ? woErr.message : "Cotización guardada, pero hubo un error al crear la orden de trabajo");
+        }
+      }
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : "Error al guardar");
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleWorkOrder() {
-    if (form.status !== "aceptada" || !savedQuoteId) return;
-    try {
-      await createWorkOrderAPI(savedQuoteId);
-      setWorkOrderCreated(true);
-    } catch (err: unknown) {
-      setSaveError(err instanceof Error ? err.message : "Error al crear orden");
     }
   }
 
@@ -729,14 +735,8 @@ export default function QuotePage() {
 
         {/* ── Actions ── */}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
-          {form.status === "aceptada" && saved && !workOrderCreated && (
-            <button onClick={handleWorkOrder}
-              style={{ padding: "11px 22px", border: "1px solid #7bbf7b", borderRadius: 10, background: "transparent", color: "#2d6a2d", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontFamily: "inherit", transition: "all 0.15s" }}>
-              ✓ Crear orden de trabajo
-            </button>
-          )}
           {workOrderCreated && (
-            <span style={{ fontSize: 13, color: "#2d6a2d", background: "#f0f9f0", padding: "8px 16px", borderRadius: 8, border: "1px solid #7bbf7b" }}>✓ Orden de trabajo creada</span>
+            <span style={{ fontSize: 13, color: "#2d6a2d", background: "#f0f9f0", padding: "8px 16px", borderRadius: 8, border: "1px solid #7bbf7b" }}>✓ Orden de trabajo creada automáticamente</span>
           )}
           {saved && !workOrderCreated && (
             <span style={{ fontSize: 13, color: "#aaa" }}>✓ Cotización guardada</span>
