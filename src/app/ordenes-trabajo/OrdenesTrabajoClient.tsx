@@ -62,6 +62,7 @@ export default function OrdenesTrabajoClient() {
   const [statusFilter, setStatusFilter] = useState<string>("pendiente");
   const [completingOrder, setCompletingOrder] = useState<WorkOrder | null>(null);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -193,9 +194,13 @@ export default function OrdenesTrabajoClient() {
             {orders.map((o) => {
               const st = STATUS_LABELS[o.status] ?? STATUS_LABELS.pendiente;
               return (
-                <div key={o.id_work_order} style={{ background: "#fff", border: "1px solid #e8e3db", borderRadius: 14, padding: "18px 20px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+                <div key={o.id_work_order} style={{ background: "#fff", border: `1px solid ${expandedId === o.id_work_order ? "#c8b89a" : "#e8e3db"}`, borderRadius: 14, overflow: "hidden", transition: "border-color 0.15s" }}>
 
+                  {/* Clickable summary row */}
+                  <div
+                    onClick={() => setExpandedId(expandedId === o.id_work_order ? null : o.id_work_order)}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", padding: "18px 20px", cursor: "pointer" }}
+                  >
                     <div style={{ flex: 1, minWidth: 220 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                         <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#2c2c2a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, color: "#c8b89a" }}>
@@ -217,36 +222,96 @@ export default function OrdenesTrabajoClient() {
                       <div style={{ fontSize: 11, color: "#bbb", marginLeft: 44, marginTop: 2 }}>
                         Orden #{o.id_work_order} · Cotización #{o.id_quote} · Actualizada el {new Date(o.updated_at).toLocaleDateString("es-MX")}
                       </div>
-                      {o.notes && (
-                        <div style={{ fontSize: 12, color: "#aaa", marginLeft: 44, marginTop: 6, fontStyle: "italic" }}>
-                          "{o.notes}"
-                        </div>
-                      )}
                     </div>
 
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{ fontSize: 18, fontWeight: 600, color: "#1c1c1a", marginBottom: 10 }}>
-                        {formatMXN(o.final_price)}
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 18, fontWeight: 600, color: "#1c1c1a" }}>
+                          {formatMXN(o.final_price)}
+                        </div>
                       </div>
+                      <span style={{ fontSize: 16, color: "#bbb", transform: expandedId === o.id_work_order ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", display: "block" }}>
+                        ▾
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Expanded detail panel */}
+                  {expandedId === o.id_work_order && (
+                    <div style={{ borderTop: "1px solid #f0ece6", background: "#faf9f7", padding: "20px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: 20 }}>
+
+                        {/* Cliente */}
+                        <div style={{ background: "#fff", border: "1px solid #e8e3db", borderRadius: 10, padding: "14px 16px" }}>
+                          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.07em", color: "#aaa", fontWeight: 500, marginBottom: 10 }}>Cliente</div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: "#1c1c1a", marginBottom: 6 }}>{o.full_name}</div>
+                          {o.phone   && <div style={{ fontSize: 13, color: "#666", marginBottom: 3 }}>📞 {o.phone}</div>}
+                          {o.address && <div style={{ fontSize: 13, color: "#666" }}>📍 {o.address}</div>}
+                        </div>
+
+                        {/* Mueble */}
+                        <div style={{ background: "#fff", border: "1px solid #e8e3db", borderRadius: 10, padding: "14px 16px" }}>
+                          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.07em", color: "#aaa", fontWeight: 500, marginBottom: 10 }}>Mueble</div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: "#1c1c1a", marginBottom: 6 }}>
+                            {FURNITURE_LABELS[o.furniture_type] ?? o.furniture_type}
+                          </div>
+                          {o.material && (
+                            <div style={{ fontSize: 13, color: "#666", marginBottom: 3 }}>
+                              🪵 Material: {MATERIAL_LABELS[o.material] ?? o.material}
+                            </div>
+                          )}
+                          <div style={{ fontSize: 13, color: "#666" }}>
+                            📐 Medidas: {o.width} × {o.height} × {o.depth} cm
+                          </div>
+                        </div>
+
+                        {/* Precio */}
+                        <div style={{ background: "#1c1c1a", borderRadius: 10, padding: "14px 16px" }}>
+                          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.07em", color: "#888", fontWeight: 500, marginBottom: 10 }}>Precio</div>
+                          <div style={{ fontSize: 22, fontWeight: 700, color: "#e8e4dc" }}>{formatMXN(o.final_price)}</div>
+                          <div style={{ fontSize: 11, color: "#666", marginTop: 4 }}>Cotización #{o.id_quote}</div>
+                        </div>
+
+                        {/* Estado */}
+                        <div style={{ background: "#fff", border: "1px solid #e8e3db", borderRadius: 10, padding: "14px 16px" }}>
+                          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.07em", color: "#aaa", fontWeight: 500, marginBottom: 10 }}>Estado</div>
+                          <span style={{ fontSize: 13, padding: "5px 14px", borderRadius: 20, background: st.bg, color: st.color, border: `1px solid ${st.border}`, fontWeight: 500 }}>
+                            {st.label}
+                          </span>
+                          <div style={{ fontSize: 11, color: "#bbb", marginTop: 8 }}>
+                            Última actualización: {new Date(o.updated_at).toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Notas */}
+                      {o.notes && (
+                        <div style={{ background: "#fffcf5", border: "1px solid #c8b89a", borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
+                          <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.07em", color: "#8a6f3e", fontWeight: 500, marginBottom: 6 }}>Notas de la cotización</div>
+                          <div style={{ fontSize: 13, color: "#666", lineHeight: 1.6, fontStyle: "italic" }}>"{o.notes}"</div>
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
                       {o.status === "pendiente" && (
-                        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
                           <button
-                            onClick={() => handleCancel(o)}
+                            onClick={(e) => { e.stopPropagation(); handleCancel(o); }}
                             disabled={cancellingId === o.id_work_order}
-                            style={{ padding: "8px 14px", border: "1px solid #e9a0a0", borderRadius: 8, background: "transparent", fontSize: 12, color: "#c0392b", cursor: cancellingId === o.id_work_order ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: cancellingId === o.id_work_order ? 0.5 : 1 }}
+                            style={{ padding: "9px 18px", border: "1px solid #e9a0a0", borderRadius: 8, background: "transparent", fontSize: 13, color: "#c0392b", cursor: cancellingId === o.id_work_order ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: cancellingId === o.id_work_order ? 0.5 : 1 }}
                           >
-                            {cancellingId === o.id_work_order ? "Cancelando..." : "Cancelar"}
+                            {cancellingId === o.id_work_order ? "Cancelando..." : "Cancelar orden"}
                           </button>
                           <button
-                            onClick={() => setCompletingOrder(o)}
-                            style={{ padding: "8px 18px", border: "none", borderRadius: 8, background: "#1c1c1a", fontSize: 12, color: "#e8e4dc", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
+                            onClick={(e) => { e.stopPropagation(); setCompletingOrder(o); }}
+                            style={{ padding: "9px 22px", border: "none", borderRadius: 8, background: "#1c1c1a", fontSize: 13, color: "#e8e4dc", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
                           >
-                            ✓ Terminado
+                            ✓ Marcar como terminado
                           </button>
                         </div>
                       )}
                     </div>
-                  </div>
+                  )}
                 </div>
               );
             })}

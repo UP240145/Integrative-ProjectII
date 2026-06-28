@@ -7,30 +7,42 @@ interface Props { email: string }
 const MODULES = [
   {
     href: "/cotizaciones-pendientes",
+    icon: "📋",
     title: "Cotizaciones",
     description: "Ver pendientes y crear nuevas cotizaciones",
     color: "#c8b89a",
   },
   {
     href: "/ordenes-trabajo",
+    icon: "🪚",
     title: "Órdenes de trabajo",
     description: "Seguimiento de fabricación y entregas",
     color: "#d49a5a",
   },
   {
     href: "/clientes",
+    icon: "👥",
     title: "Clientes",
     description: "Registrar y administrar el directorio de clientes",
     color: "#89b4e8",
   },
   {
     href: "/citas",
+    icon: "📅",
     title: "Citas",
     description: "Agendar citas y consultar el calendario de visitas",
     color: "#b89ac8",
   },
   {
+    href: "/inventario",
+    icon: "🪵",
+    title: "Inventario",
+    description: "Stock de materiales y registro de consumo",
+    color: "#a8c89a",
+  },
+  {
     href: "/configuracion",
+    icon: "⚙️",
     title: "Configuración",
     description: "Administrar usuarios y ajustes del sistema",
     color: "#7bbf7b",
@@ -124,9 +136,9 @@ export default function DashboardClient({ email }: Props) {
 }
 
 function ModuleCard({
-  title, description, color, onClick,
+  icon, title, description, color, onClick,
 }: {
-  title: string; description: string; color: string; onClick: () => void;
+  icon: string; title: string; description: string; color: string; onClick: () => void;
 }) {
   return (
     <button
@@ -157,6 +169,15 @@ function ModuleCard({
         el.style.boxShadow = "none";
       }}
     >
+      <div style={{
+        width: 44, height: 44,
+        background: "#f5f3ef",
+        borderRadius: 10,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 22,
+      }}>
+        {icon}
+      </div>
       <div>
         <div style={{ fontSize: 16, fontWeight: 600, color: "#1c1c1a", marginBottom: 6 }}>
           {title}

@@ -66,43 +66,48 @@ const MATERIAL_LABELS: Record<Material, string> = {
   cedro: "Cedro",
 };
 
-const MATERIAL_PRICE_PER_CM3: Record<Material, number> = {
-  mdf: 0.0018,
-  melamina: 0.0022,
-  pino: 0.0034,
-  roble: 0.0052,
-  cedro: 0.006,
-};
-
+// Multiplicador de complejidad por tipo de mueble
 const FURNITURE_COMPLEXITY: Record<FurnitureType, number> = {
-  closet: 2.4,
-  cocina: 3.2,
-  comedor: 2.0,
-  cama: 1.8,
-  estanteria: 1.4,
-  bano: 2.6,
-  otro: 2.0,
+  closet:    1.5,
+  cocina:    2.0,
+  comedor:   1.2,
+  cama:      1.0,
+  estanteria: 0.9,
+  bano:      1.6,
+  otro:      1.2,
 };
 
-const LABOR_FACTOR = 1.45;
+const LABOR_PER_M2   = 250;  // $ por m²
+const PROFIT_MARGIN  = 0.10; // 10%
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Superficie total del mueble en m² (6 caras)
+function surfaceM2(wCm: number, hCm: number, dCm: number): number {
+  return 2 * (wCm * hCm + wCm * dCm + hCm * dCm) / 10000;
+}
+
 function calculatePrice(
-  material: Material | "",
   furnitureType: FurnitureType | "",
   width: string,
   height: string,
-  depth: string
+  depth: string,
+  pricePerPlate: number   // precio/m² del material desde la DB
 ): number {
   const w = parseFloat(width) || 0;
   const h = parseFloat(height) || 0;
   const d = parseFloat(depth) || 0;
-  if (!material || !furnitureType || w === 0 || h === 0 || d === 0) return 0;
-  const volume = w * h * d;
-  const materialCost =
-    volume * MATERIAL_PRICE_PER_CM3[material] * FURNITURE_COMPLEXITY[furnitureType];
-  return Math.ceil((materialCost * LABOR_FACTOR) / 50) * 50;
+  if (!furnitureType || w === 0 || h === 0 || d === 0 || pricePerPlate === 0) return 0;
+
+  const m2          = surfaceM2(w, h, d);
+  const complexity  = FURNITURE_COMPLEXITY[furnitureType] ?? 1.0;
+  const materialCost = m2 * pricePerPlate;
+  const laborCost    = m2 * LABOR_PER_M2 * complexity;
+  const subtotal     = materialCost + laborCost;
+  const total        = subtotal * (1 + PROFIT_MARGIN);
+
+  // Redondear al 50 más cercano
+  return Math.ceil(total / 50) * 50;
 }
 
 function formatMXN(value: number): string {
@@ -164,7 +169,7 @@ async function saveQuote(payload: {
   final_price: number;
   status: string;
   notes: string;
-}): Promise<{ id_quote: number }> {
+}): Promise<{ id_quote: number; material_used_m2?: number | null; low_stock?: boolean | null }> {
   const res = await fetch(`${API_BASE}/quotes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -177,6 +182,21 @@ async function saveQuote(payload: {
   }
   const json = await res.json();
   return json.data;
+}
+
+async function fetchMaterialPrice(material: Material): Promise<number> {
+  try {
+    const res = await fetch("/api/inventory");
+    const json = await res.json();
+    const MATERIAL_TO_NAME: Record<Material, string> = {
+      mdf: "MDF", melamina: "Melamina", pino: "Pino macizo", roble: "Roble", cedro: "Cedro",
+    };
+    const name = MATERIAL_TO_NAME[material];
+    const item = (json.data ?? []).find((i: { name: string; price: number }) => i.name === name);
+    return item ? parseFloat(String(item.price)) : 0;
+  } catch {
+    return 0;
+  }
 }
 
 async function createWorkOrderAPI(id_quote: number): Promise<void> {
@@ -545,16 +565,36 @@ export default function QuotePage() {
   const [quoteId, setQuoteId]                   = useState("");
   const [saved, setSaved]                       = useState(false);
   const [workOrderCreated, setWorkOrderCreated] = useState(false);
+  const [pricePerPlate, setPricePerPlate]       = useState(0);
+  const [loadingPrice, setLoadingPrice]         = useState(false);
   const [saving, setSaving]                     = useState(false);
   const [saveError, setSaveError]               = useState<string | null>(null);
   const [savedQuoteId, setSavedQuoteId]         = useState<number | null>(null);
+  const [materialUsed, setMaterialUsed]         = useState<number | null>(null);
+  const [lowStock, setLowStock]                 = useState(false);
 
   useEffect(() => { setQuoteId(generateQuoteId()); }, []);
 
+  // Fetch price from DB when material changes
   useEffect(() => {
-    const price = calculatePrice(form.material, form.furnitureType, form.width, form.height, form.depth);
+    if (!form.material) { setPricePerPlate(0); return; }
+    setLoadingPrice(true);
+    fetchMaterialPrice(form.material as Material)
+      .then(p => setPricePerPlate(p))
+      .finally(() => setLoadingPrice(false));
+  }, [form.material]);
+
+  // Recalculate price whenever relevant fields change
+  useEffect(() => {
+    const price = calculatePrice(
+      form.furnitureType,
+      form.width,
+      form.height,
+      form.depth,
+      pricePerPlate
+    );
     setForm((prev) => ({ ...prev, calculatedCost: price }));
-  }, [form.material, form.furnitureType, form.width, form.height, form.depth]);
+  }, [form.furnitureType, form.width, form.height, form.depth, pricePerPlate]);
 
   function update<K extends keyof QuoteForm>(key: K, value: QuoteForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -591,6 +631,8 @@ export default function QuotePage() {
         notes:           form.notes,
       });
       setSavedQuoteId(result.id_quote);
+      setMaterialUsed(result.material_used_m2 ?? null);
+      setLowStock(result.low_stock ?? false);
       setSaved(true);
 
       // Si la cotización se guarda como "aceptada", crear la orden de trabajo automáticamente
@@ -662,9 +704,27 @@ export default function QuotePage() {
             <div style={{ flex: 1, minWidth: 160, background: "#f5f3ef", border: "1px solid #e0dbd4", borderRadius: 10, padding: "14px 18px" }}>
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "#aaa", fontWeight: 500, marginBottom: 6 }}>Precio sugerido</div>
               <div style={{ fontSize: 26, fontWeight: 600, color: form.calculatedCost > 0 ? "#1c1c1a" : "#ccc", letterSpacing: "-0.01em" }}>
-                {form.calculatedCost > 0 ? formatMXN(form.calculatedCost) : "—"}
+                {loadingPrice ? "..." : form.calculatedCost > 0 ? formatMXN(form.calculatedCost) : "—"}
               </div>
-              {form.calculatedCost === 0 && <div style={{ fontSize: 11, color: "#bbb", marginTop: 4 }}>Completa medidas y material</div>}
+              {form.calculatedCost === 0 && !loadingPrice && (
+                <div style={{ fontSize: 11, color: "#bbb", marginTop: 4 }}>
+                  {!form.material ? "Selecciona material" : pricePerPlate === 0 ? "Material sin precio en inventario" : "Completa las medidas"}
+                </div>
+              )}
+              {form.calculatedCost > 0 && form.material && form.width && form.height && form.depth && (
+                <div style={{ fontSize: 10, color: "#aaa", marginTop: 6, lineHeight: 1.6 }}>
+                  {(() => {
+                    const w = parseFloat(form.width)||0, h = parseFloat(form.height)||0, d = parseFloat(form.depth)||0;
+                    const m2 = parseFloat((2*(w*h+w*d+h*d)/10000).toFixed(3));
+                    const complexity = FURNITURE_COMPLEXITY[form.furnitureType as FurnitureType] ?? 1.0;
+                    const mat  = Math.round(m2 * pricePerPlate);
+                    const labor = Math.round(m2 * LABOR_PER_M2 * complexity);
+                    return <>
+                      📐 {m2} m² · 🪵 {formatMXN(mat)} · 🔨 {formatMXN(labor)} · +{Math.round(PROFIT_MARGIN*100)}% ganancia
+                    </>;
+                  })()}
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", color: "#ccc", fontSize: 18, padding: "0 4px" }}>→</div>
@@ -741,10 +801,18 @@ export default function QuotePage() {
             <span style={{ fontSize: 13, color: "#2d6a2d", background: "#f0f9f0", padding: "8px 16px", borderRadius: 8, border: "1px solid #7bbf7b" }}>✓ Orden de trabajo creada automáticamente</span>
           )}
           {saved && !workOrderCreated && (
-            <span style={{ fontSize: 13, color: "#aaa" }}>✓ Cotización guardada</span>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+              <span style={{ fontSize: 13, color: "#aaa" }}>✓ Cotización guardada</span>
+              {materialUsed !== null && (
+                <span style={{ fontSize: 12, color: lowStock ? "#c0392b" : "#aaa" }}>
+                  {lowStock ? "⚠ " : ""}Material descontado: {materialUsed.toFixed(2)} m²
+                  {lowStock ? " — stock bajo o negativo" : ""}
+                </span>
+              )}
+            </div>
           )}
           <button
-            onClick={() => { setForm(INITIAL_FORM); setSelectedClient(null); setSaved(false); setWorkOrderCreated(false); setSavedQuoteId(null); }}
+            onClick={() => { setForm(INITIAL_FORM); setSelectedClient(null); setSaved(false); setWorkOrderCreated(false); setSavedQuoteId(null); setMaterialUsed(null); setLowStock(false); setPricePerPlate(0); }}
             style={{ padding: "11px 20px", border: "1px solid #e0dbd4", borderRadius: 10, background: "transparent", color: "#888", fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
             Limpiar
           </button>
