@@ -103,7 +103,7 @@ export default function ClientesClient() {
                 transition: "all 0.15s",
               }}
             >
-              {t === "ver" ? "Ver clientes" : "Agregar cliente"}
+              {t === "ver" ? "👥  Ver clientes" : "➕  Agregar cliente"}
             </button>
           ))}
         </div>
@@ -175,7 +175,10 @@ function VerClientes() {
   }
 
   async function handleSaveEdit() {
-    if (!editForm.full_name?.trim()) { setError("El nombre es obligatorio"); return; }
+    if (!editForm.full_name?.trim())     { setError("El nombre es obligatorio"); return; }
+    if (/\d/.test(editForm.full_name!))  { setError("El nombre no debe contener números"); return; }
+    if (editForm.phone && !/^\d{10}$/.test(editForm.phone.trim())) { setError("El teléfono debe tener exactamente 10 dígitos numéricos"); return; }
+    if (editForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email.trim())) { setError("El correo electrónico no tiene un formato válido"); return; }
     setSaving(true);
     setError(null);
     try {
@@ -318,12 +321,14 @@ function AgregarCliente({ onSuccess }: { onSuccess: () => void }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.full_name.trim()) { setError("El nombre completo es obligatorio"); return; }
-    if (!form.phone.trim())     { setError("El teléfono es obligatorio"); return; }
-    if (!/^\d+$/.test(form.phone.trim())) { setError("El teléfono solo debe contener números"); return; }
-    if (form.phone.trim().length !== 10)  { setError("El teléfono debe tener exactamente 10 dígitos"); return; }
-    if (!form.email.trim())     { setError("El correo electrónico es obligatorio"); return; }
-    if (!form.address.trim())   { setError("La dirección es obligatoria"); return; }
+    if (!form.full_name.trim())          { setError("El nombre completo es obligatorio"); return; }
+    if (/\d/.test(form.full_name))       { setError("El nombre no debe contener números"); return; }
+    if (!form.phone.trim())              { setError("El teléfono es obligatorio"); return; }
+    if (!/^\d+$/.test(form.phone.trim())){ setError("El teléfono solo debe contener números"); return; }
+    if (form.phone.trim().length !== 10) { setError("El teléfono debe tener exactamente 10 dígitos"); return; }
+    if (!form.email.trim())              { setError("El correo electrónico es obligatorio"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) { setError("El correo electrónico no tiene un formato válido"); return; }
+    if (!form.address.trim())            { setError("La dirección es obligatoria"); return; }
     setError(null);
     setLoading(true);
     try {
@@ -354,7 +359,7 @@ function AgregarCliente({ onSuccess }: { onSuccess: () => void }) {
   return (
     <div style={{ background: "#fff", border: "1px solid #e8e3db", borderRadius: 14, overflow: "hidden" }}>
       <div style={{ padding: "14px 20px", background: "#faf9f7", borderBottom: "1px solid #f0ece6", fontSize: 13, fontWeight: 500, color: "#444" }}>
-        Nuevo cliente
+        ➕ Nuevo cliente
       </div>
       <form onSubmit={handleSubmit} style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
         <FieldInline label="Nombre completo *">
@@ -364,7 +369,7 @@ function AgregarCliente({ onSuccess }: { onSuccess: () => void }) {
             required
             placeholder="Nombre completo"
             value={form.full_name}
-            onChange={(e) => { setForm(p => ({ ...p, full_name: e.target.value })); setError(null); }}
+            onChange={(e) => { const v = e.target.value.replace(/[0-9]/g, ""); setForm(p => ({ ...p, full_name: v })); setError(null); }}
           />
         </FieldInline>
 

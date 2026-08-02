@@ -157,7 +157,10 @@ function AgendarCita() {
     if (!selectedClient) { setError("Selecciona un cliente"); return; }
     if (!apptType)        { setError("Selecciona el tipo de cita"); return; }
     if (!apptDate)        { setError("Selecciona una fecha"); return; }
-    if (!apptTime)        { setError("Selecciona un horario"); return; }
+    if (!apptTime)        { setError("Selecciona un horario disponible"); return; }
+    // Verificar que la fecha no sea pasada (doble verificación en frontend)
+    const today = new Date().toISOString().split("T")[0];
+    if (apptDate < today) { setError("No se pueden agendar citas en fechas pasadas"); return; }
 
     setSaving(true);
     setError(null);

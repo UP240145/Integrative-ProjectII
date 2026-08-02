@@ -95,6 +95,7 @@ function VerInventario() {
   const [editForm, setEditForm]   = useState<Partial<WoodItem>>({});
   const [addId, setAddId]         = useState<number | null>(null);
   const [addQty, setAddQty]       = useState("");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const [success, setSuccess]     = useState<string | null>(null);
@@ -140,8 +141,24 @@ function VerInventario() {
     return "En stock";
   }
 
+  async function handleDelete(item: WoodItem) {
+    if (!confirm(`¿Eliminar el material "${item.name}"? Esta acción no se puede deshacer.`)) return;
+    setDeletingId(item.id_wood);
+    setError(null);
+    try {
+      const res = await fetch(`/api/inventory/${item.id_wood}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) { setError(json.message); return; }
+      setSuccess(`Material "${item.name}" eliminado correctamente`);
+      load();
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   async function handleSaveEdit() {
-    if (!editForm.name?.trim()) { setError("El nombre es obligatorio"); return; }
+    if (!editForm.name?.trim())                            { setError("El nombre es obligatorio"); return; }
+    if (editForm.price !== undefined && editForm.price <= 0) { setError("El precio debe ser mayor a 0"); return; }
     setSaving(true); setError(null);
     try {
       const res = await fetch(`/api/inventory/${editId}`, {
@@ -159,7 +176,8 @@ function VerInventario() {
 
   async function handleAddStock() {
     const qty = parseFloat(addQty);
-    if (!qty || qty <= 0) { setError("Ingresa una cantidad válida mayor a 0"); return; }
+    if (!addQty || isNaN(qty) || qty <= 0)      { setError("Ingresa una cantidad válida mayor a 0"); return; }
+    if (!Number.isInteger(qty))                  { setError("La cantidad debe ser un número entero"); return; }
     setSaving(true); setError(null);
     try {
       const res = await fetch(`/api/inventory/${addId}`, {
@@ -217,9 +235,9 @@ function VerInventario() {
               {/* Stock badge */}
               <div style={{ textAlign: "center", flexShrink: 0 }}>
                 <div style={{ fontSize: 22, fontWeight: 700, color: stockColor(item) }}>
-                  {item.stock_quantity.toFixed(2)}
+                  {item.stock_quantity}
                 </div>
-                <div style={{ fontSize: 10, color: "#aaa" }}>m²</div>
+                <div style={{ fontSize: 10, color: "#aaa" }}>placas</div>
                 <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: stockBg(item), color: stockColor(item), border: `1px solid ${stockBorder(item)}`, fontWeight: 500 }}>
                   {stockLabel(item)}
                 </span>
@@ -237,6 +255,12 @@ function VerInventario() {
                   style={{ padding: "6px 14px", border: "1px solid #e0dbd4", borderRadius: 7, background: "transparent", fontSize: 12, color: "#666", cursor: "pointer", fontFamily: "inherit" }}>
                   {editId === item.id_wood ? "Cancelar" : "Editar"}
                 </button>
+                <button
+                  onClick={() => handleDelete(item)}
+                  disabled={deletingId === item.id_wood}
+                  style={{ padding: "6px 14px", border: "1px solid #e9a0a0", borderRadius: 7, background: "transparent", fontSize: 12, color: "#c0392b", cursor: deletingId === item.id_wood ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: deletingId === item.id_wood ? 0.5 : 1 }}>
+                  {deletingId === item.id_wood ? "Eliminando..." : "Eliminar"}
+                </button>
               </div>
             </div>
 
@@ -250,16 +274,16 @@ function VerInventario() {
                   <input
                     style={{ ...inputStyle, borderColor: "#89b4e8", background: "#fff" }}
                     type="number"
-                    min={0.01}
-                    step={0.01}
-                    placeholder="Ej: 10.50"
+                    min={1}
+                    step={1}
+                    placeholder="Ej: 10"
                     value={addQty}
-                    onChange={(e) => { setAddQty(e.target.value); setError(null); }}
+                    onChange={(e) => { setAddQty(String(Math.round(parseFloat(e.target.value) || 0) || "")); setError(null); }}
                     autoFocus
                   />
                   {addQty && parseFloat(addQty) > 0 && item.stock_quantity < 0 && (
                     <span style={{ fontSize: 11, color: "#2d4a8a" }}>
-                      Stock actual: {item.stock_quantity.toFixed(2)} m² → después: {(item.stock_quantity + parseFloat(addQty)).toFixed(2)} m²
+                      Stock actual: {item.stock_quantity} placas → después: {item.stock_quantity + Math.round(parseFloat(addQty))} placas
                     </span>
                   )}
                 </div>
@@ -290,9 +314,9 @@ function VerInventario() {
                   </div>
                   <div>
                     <label style={{ fontSize: 11, color: "#aaa", fontWeight: 500, display: "block", marginBottom: 4 }}>Alerta mínima (m²)</label>
-                    <input style={inputStyle} type="number" min={0} step={0.1}
+                    <input style={inputStyle} type="number" min={0} step={1}
                       value={editForm.min_stock_alert !== undefined && !isNaN(editForm.min_stock_alert) ? editForm.min_stock_alert : ""}
-                      onChange={(e) => setEditForm(p => ({ ...p, min_stock_alert: e.target.value === "" ? 0 : parseFloat(e.target.value) }))} />
+                      onChange={(e) => setEditForm(p => ({ ...p, min_stock_alert: e.target.value === "" ? 0 : Math.round(parseFloat(e.target.value)) }))} />
                   </div>
                 </div>
                 {error && editId === item.id_wood && (
@@ -327,8 +351,10 @@ function AgregarMaterial({ onSuccess }: { onSuccess: () => void }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim())         { setError("El nombre es obligatorio"); return; }
-    if (!form.price)               { setError("El precio es obligatorio"); return; }
+    if (!form.name.trim())                        { setError("El nombre es obligatorio"); return; }
+    if (/[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]/.test(form.name)) { setError("El nombre solo debe contener letras"); return; }
+    if (!form.price || parseFloat(form.price) <= 0) { setError("El precio debe ser mayor a 0"); return; }
+    if (form.stock_quantity && parseFloat(form.stock_quantity) < 0) { setError("El stock no puede ser negativo"); return; }
     setError(null);
     setLoading(true);
     try {
@@ -372,11 +398,11 @@ function AgregarMaterial({ onSuccess }: { onSuccess: () => void }) {
           <FieldInline label="Precio por placa ($) *">
             <input style={inputStyle} type="number" min={0} step={0.01} placeholder="0.00" value={form.price} onChange={(e) => { setForm(p => ({ ...p, price: e.target.value })); setError(null); }} required />
           </FieldInline>
-          <FieldInline label="Stock inicial (m²)">
-            <input style={inputStyle} type="number" min={0} step={0.01} placeholder="0.00" value={form.stock_quantity} onChange={(e) => setForm(p => ({ ...p, stock_quantity: e.target.value }))} />
+          <FieldInline label="Stock inicial (placas)">
+            <input style={inputStyle} type="number" min={0} step={1} placeholder="0" value={form.stock_quantity} onChange={(e) => setForm(p => ({ ...p, stock_quantity: String(Math.round(parseFloat(e.target.value) || 0)) }))} />
           </FieldInline>
-          <FieldInline label="Alerta stock mínimo (m²)">
-            <input style={inputStyle} type="number" min={0} step={0.1} placeholder="0" value={form.min_stock_alert} onChange={(e) => setForm(p => ({ ...p, min_stock_alert: e.target.value }))} />
+          <FieldInline label="Alerta stock mínimo (placas)">
+            <input style={inputStyle} type="number" min={0} step={1} placeholder="0" value={form.min_stock_alert} onChange={(e) => setForm(p => ({ ...p, min_stock_alert: String(Math.round(parseFloat(e.target.value) || 0)) }))} />
           </FieldInline>
         </div>
 

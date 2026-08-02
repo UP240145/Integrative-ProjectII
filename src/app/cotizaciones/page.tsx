@@ -82,9 +82,9 @@ const PROFIT_MARGIN  = 0.10; // 10%
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Superficie total del mueble en m² (6 caras)
+// Placas necesarias (superficie total 6 caras, redondeada hacia arriba)
 function surfaceM2(wCm: number, hCm: number, dCm: number): number {
-  return 2 * (wCm * hCm + wCm * dCm + hCm * dCm) / 10000;
+  return Math.ceil(2 * (wCm * hCm + wCm * dCm + hCm * dCm) / 10000);
 }
 
 function calculatePrice(
@@ -615,6 +615,12 @@ export default function QuotePage() {
 
   async function handleSave() {
     if (!selectedClient || !isComplete) return;
+    // Validaciones de medidas
+    const w = parseFloat(form.width), h = parseFloat(form.height), d = parseFloat(form.depth);
+    if (w < 20 || w > 1000) { setSaveError("El ancho debe estar entre 20 y 1000 cm"); return; }
+    if (h < 20 || h > 400)  { setSaveError("El alto debe estar entre 20 y 400 cm"); return; }
+    if (d < 10 || d > 200)  { setSaveError("El fondo debe estar entre 10 y 200 cm"); return; }
+
     setSaving(true);
     setSaveError(null);
     try {
@@ -688,13 +694,16 @@ export default function QuotePage() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px 20px" }}>
             <Field label="Ancho (cm)">
-              <input style={inputStyle} type="number" min={0} placeholder="0" value={form.width} onChange={(e) => update("width", e.target.value)} />
+              <input style={inputStyle} type="number" min={20} max={1000} placeholder="Mín. 20 cm" value={form.width}
+                onChange={(e) => { const v = e.target.value; if (v === "" || /^\d+$/.test(v)) update("width", v); }} />
             </Field>
             <Field label="Alto (cm)">
-              <input style={inputStyle} type="number" min={0} placeholder="0" value={form.height} onChange={(e) => update("height", e.target.value)} />
+              <input style={inputStyle} type="number" min={20} max={400} placeholder="Mín. 20 cm" value={form.height}
+                onChange={(e) => { const v = e.target.value; if (v === "" || /^\d+$/.test(v)) update("height", v); }} />
             </Field>
             <Field label="Fondo (cm)">
-              <input style={inputStyle} type="number" min={0} placeholder="0" value={form.depth} onChange={(e) => update("depth", e.target.value)} />
+              <input style={inputStyle} type="number" min={10} max={200} placeholder="Mín. 10 cm" value={form.depth}
+                onChange={(e) => { const v = e.target.value; if (v === "" || /^\d+$/.test(v)) update("depth", v); }} />
             </Field>
           </div>
         </SectionCard>
@@ -715,12 +724,12 @@ export default function QuotePage() {
                 <div style={{ fontSize: 10, color: "#aaa", marginTop: 6, lineHeight: 1.6 }}>
                   {(() => {
                     const w = parseFloat(form.width)||0, h = parseFloat(form.height)||0, d = parseFloat(form.depth)||0;
-                    const m2 = parseFloat((2*(w*h+w*d+h*d)/10000).toFixed(3));
+                    const m2 = Math.ceil(2*(w*h+w*d+h*d)/10000);
                     const complexity = FURNITURE_COMPLEXITY[form.furnitureType as FurnitureType] ?? 1.0;
                     const mat  = Math.round(m2 * pricePerPlate);
                     const labor = Math.round(m2 * LABOR_PER_M2 * complexity);
                     return <>
-                      📐 {m2} m² · 🪵 {formatMXN(mat)} · 🔨 {formatMXN(labor)} · +{Math.round(PROFIT_MARGIN*100)}% ganancia
+                      📐 {m2} {m2 === 1 ? "placa" : "placas"} · 🪵 {formatMXN(mat)} · 🔨 {formatMXN(labor)} · +{Math.round(PROFIT_MARGIN*100)}% ganancia
                     </>;
                   })()}
                 </div>
@@ -754,8 +763,8 @@ export default function QuotePage() {
                     <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "#aaa" }}>$</span>
                     <input
                       style={{ ...inputStyle, paddingLeft: 24, fontSize: 16, fontWeight: 500, borderColor: "#c8b89a", background: "#fff" }}
-                      type="number" min={0} placeholder="0" value={form.overridePrice}
-                      onChange={(e) => update("overridePrice", e.target.value)} autoFocus
+                      type="number" min={1} step={50} placeholder="0" value={form.overridePrice}
+                      onChange={(e) => { const v = e.target.value; if (v === "" || /^\d+$/.test(v)) update("overridePrice", v); }} autoFocus
                     />
                   </div>
                   <button onClick={() => { update("useOverride", false); update("overridePrice", ""); }} style={{ background: "transparent", border: "none", color: "#aaa", fontSize: 13, cursor: "pointer", padding: "4px 8px", borderRadius: 6, fontFamily: "inherit" }}>
@@ -804,9 +813,8 @@ export default function QuotePage() {
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
               <span style={{ fontSize: 13, color: "#aaa" }}>✓ Cotización guardada</span>
               {materialUsed !== null && (
-                <span style={{ fontSize: 12, color: lowStock ? "#c0392b" : "#aaa" }}>
-                  {lowStock ? "⚠ " : ""}Material descontado: {materialUsed.toFixed(2)} m²
-                  {lowStock ? " — stock bajo o negativo" : ""}
+                <span style={{ fontSize: 12, color: "#aaa" }}>
+                  📐 {materialUsed} {materialUsed === 1 ? "placa" : "placas"} registradas en quote_materials
                 </span>
               )}
             </div>

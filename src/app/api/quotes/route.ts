@@ -9,13 +9,12 @@ import pool from "@/lib/db";
 
 // ── Cálculo de material ───────────────────────────────────────────────────────
 // Placa = 1m² × 4cm grosor
-// Área total del mueble (6 caras, en m²):
-//   2 × (W×H + W×D + H×D) / 10000  (cm² → m²)
+// Área total (6 caras) redondeada hacia arriba → número entero de placas completas
 function calculateMaterialM2(
   widthCm: number, heightCm: number, depthCm: number
 ): number {
   const areaCm2 = 2 * (widthCm * heightCm + widthCm * depthCm + heightCm * depthCm);
-  return parseFloat((areaCm2 / 10000).toFixed(4));
+  return Math.ceil(areaCm2 / 10000);
 }
 
 // Nombre de material en la cotización → id_wood en Inventory
@@ -78,6 +77,13 @@ export async function POST(req: NextRequest) {
     if (final_price === undefined || final_price === null)
       return NextResponse.json({ ok: false, message: "final_price es obligatorio" }, { status: 400 });
 
+    // Validar rangos de medidas
+    const wv = parseFloat(String(width)), hv = parseFloat(String(height)), dv = parseFloat(String(depth));
+    if (isNaN(wv) || wv < 20 || wv > 1000) return NextResponse.json({ ok: false, message: "Ancho debe estar entre 20 y 1000 cm" }, { status: 400 });
+    if (isNaN(hv) || hv < 20 || hv > 400)  return NextResponse.json({ ok: false, message: "Alto debe estar entre 20 y 400 cm" }, { status: 400 });
+    if (isNaN(dv) || dv < 10 || dv > 200)  return NextResponse.json({ ok: false, message: "Fondo debe estar entre 10 y 200 cm" }, { status: 400 });
+    if (parseFloat(String(final_price)) <= 0) return NextResponse.json({ ok: false, message: "El precio final debe ser mayor a 0" }, { status: 400 });
+
     // Verificar cliente
     const [clients] = await conn.query("SELECT id_client FROM Client WHERE id_client = ?", [id_client]);
     if ((clients as unknown[]).length === 0)
@@ -120,18 +126,13 @@ export async function POST(req: NextRequest) {
     );
     const insertId = (result as { insertId: number }).insertId;
 
-    // 2. Registrar en quote_materials y descontar inventario (si hay material identificado)
+    // 2. Solo registrar en quote_materials — NO se descuenta inventario todavía.
+    // El descuento ocurre cuando la cotización es aceptada y se crea la work order.
     if (idWood !== null) {
       await conn.query(
         `INSERT INTO quote_materials (id_quote, id_wood, calculated_quantity)
          VALUES (?, ?, ?)`,
         [insertId, idWood, materialM2]
-      );
-
-      // Descontar del inventario (puede quedar negativo — permitido)
-      await conn.query(
-        "UPDATE Inventory SET stock_quantity = stock_quantity - ? WHERE id_wood = ?",
-        [materialM2, idWood]
       );
     }
 

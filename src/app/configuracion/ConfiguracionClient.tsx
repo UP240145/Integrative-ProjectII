@@ -61,7 +61,7 @@ export default function ConfiguracionClient({ currentAdminId }: { currentAdminId
                 transition: "all 0.15s",
               }}
             >
-              {t === "ver" ? "Ver administradores" : "Agregar administrador"}
+              {t === "ver" ? "👥  Ver administradores" : "➕  Agregar administrador"}
             </button>
           ))}
         </div>
@@ -345,12 +345,20 @@ function AgregarAdmin({ onSuccess }: { onSuccess: () => void }) {
     e.preventDefault();
     setError(null);
 
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("El correo electrónico no tiene un formato válido");
+      return;
+    }
     if (password !== confirm) {
       setError("Las contraseñas no coinciden");
       return;
     }
     if (password.length < 6) {
       setError("La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+    if (/^\d+$/.test(password)) {
+      setError("La contraseña no puede ser solo números");
       return;
     }
 
@@ -399,7 +407,7 @@ function AgregarAdmin({ onSuccess }: { onSuccess: () => void }) {
       overflow: "hidden",
     }}>
       <div style={{ padding: "14px 20px", background: "#faf9f7", borderBottom: "1px solid #f0ece6", fontSize: 13, fontWeight: 500, color: "#444" }}>
-        Nuevo administrador
+        ➕ Nuevo administrador
       </div>
       <form onSubmit={handleSubmit} style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>

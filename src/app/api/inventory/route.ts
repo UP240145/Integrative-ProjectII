@@ -31,14 +31,22 @@ export async function POST(req: NextRequest) {
     if (!name || String(name).trim() === "")
       return NextResponse.json({ ok: false, message: "El nombre es obligatorio" }, { status: 400 });
 
+    // Verificar que no exista otro material con el mismo nombre
+    const [dup] = await pool.query(
+      "SELECT id_wood FROM Inventory WHERE LOWER(name) = LOWER(?)",
+      [String(name).trim()]
+    );
+    if ((dup as unknown[]).length > 0)
+      return NextResponse.json({ ok: false, message: "Ya existe un material con ese nombre." }, { status: 409 });
+
     const [result] = await pool.query(
       `INSERT INTO Inventory (name, stock_quantity, price, min_stock_alert)
        VALUES (?, ?, ?, ?)`,
       [
         String(name).trim(),
-        parseFloat(String(stock_quantity ?? 0)),
+        Math.round(parseFloat(String(stock_quantity ?? 0))),
         parseFloat(String(price ?? 0)),
-        parseFloat(String(min_stock_alert ?? 0)),
+        Math.round(parseFloat(String(min_stock_alert ?? 0))),
       ]
     );
     const insertId = (result as { insertId: number }).insertId;

@@ -33,12 +33,27 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
     const idQuote = woList[0].id_quote;
 
+    // Obtener materiales de la cotización para reponer inventario
+    const [qmRows] = await pool.query(
+      "SELECT id_wood, calculated_quantity FROM quote_materials WHERE id_quote = ?",
+      [idQuote]
+    );
+    const qmList = qmRows as { id_wood: number; calculated_quantity: number }[];
+
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
 
       await conn.query("UPDATE work_orders SET status = 'cancelada' WHERE id_work_order = ?", [id]);
       await conn.query("UPDATE Quote SET status = 'pendiente' WHERE id_quote = ?", [idQuote]);
+
+      // Reponer materiales al inventario
+      for (const qm of qmList) {
+        await conn.query(
+          "UPDATE Inventory SET stock_quantity = stock_quantity + ? WHERE id_wood = ?",
+          [Math.round(Number(qm.calculated_quantity)), qm.id_wood]
+        );
+      }
 
       await conn.commit();
 

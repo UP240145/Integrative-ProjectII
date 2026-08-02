@@ -41,6 +41,13 @@ const MODULES = [
     color: "#a8c89a",
   },
   {
+    href: "/reportes",
+    icon: "📊",
+    title: "Reportes",
+    description: "Ventas, inventario y citas por mes con exportación PDF",
+    color: "#89b4e8",
+  },
+  {
     href: "/configuracion",
     icon: "⚙️",
     title: "Configuración",
@@ -123,7 +130,7 @@ export default function DashboardClient({ email }: Props) {
 
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+          gridTemplateColumns: "repeat(3, 1fr)",
           gap: 16,
         }}>
           {MODULES.map((mod) => (

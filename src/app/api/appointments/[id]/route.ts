@@ -1,8 +1,10 @@
 /**
  * src/app/api/appointments/[id]/route.ts
  *
- * DELETE /api/appointments/:id   → cancelar cita (solo para citas que NO son de entrega)
- * PUT    /api/appointments/:id   → reagendar cita (cambiar fecha/hora), valida conflictos
+ * DELETE /api/appointments/:id  → cancelar cita
+ *   - Bloquea citas tipo "entregar" (deben reagendarse)
+ *   - Bloquea si la cita está ligada a una orden de trabajo activa
+ * PUT    /api/appointments/:id  → reagendar cita (valida conflictos)
  */
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
@@ -22,25 +24,41 @@ function minutesToTime(mins: number): string {
 
 interface Params { params: Promise<{ id: string }> }
 
-// ── DELETE /api/appointments/:id ──────────────────────────────────────────────
+// ── DELETE ────────────────────────────────────────────────────────────────────
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
 
-    // Las citas de entrega no se cancelan, se reagendan
     const [rows] = await pool.query(
-      "SELECT appointment_type FROM appointments WHERE id_appointment = ?",
+      "SELECT id_appointment, appointment_type, id_client, appointment_date FROM appointments WHERE id_appointment = ?",
       [id]
     );
-    const list = rows as { appointment_type: string }[];
+    const list = rows as { id_appointment: number; appointment_type: string; id_client: number; appointment_date: string }[];
     if (list.length === 0)
       return NextResponse.json({ ok: false, message: "Cita no encontrada" }, { status: 404 });
 
-    if (list[0].appointment_type === "entregar")
+    const appt = list[0];
+
+    // Las citas de entrega no se cancelan, se reagendan
+    if (appt.appointment_type === "entregar")
       return NextResponse.json({
         ok: false,
         message: "Las citas de entrega no se pueden cancelar, deben reagendarse a otra fecha u horario.",
       }, { status: 400 });
+
+    // No cancelar si el cliente tiene órdenes de trabajo activas
+    const [activeOrders] = await pool.query(
+      `SELECT wo.id_work_order FROM work_orders wo
+       JOIN Quote q ON q.id_quote = wo.id_quote
+       WHERE q.id_client = ? AND wo.status = 'pendiente'
+       LIMIT 1`,
+      [appt.id_client]
+    );
+    if ((activeOrders as unknown[]).length > 0)
+      return NextResponse.json({
+        ok: false,
+        message: "No se puede cancelar esta cita porque el cliente tiene órdenes de trabajo activas.",
+      }, { status: 409 });
 
     const [result] = await pool.query("DELETE FROM appointments WHERE id_appointment = ?", [id]);
     if ((result as { affectedRows: number }).affectedRows === 0)
@@ -53,8 +71,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   }
 }
 
-// ── PUT /api/appointments/:id ─────────────────────────────────────────────────
-// Reagenda la cita: cambia fecha y/u hora, validando conflictos igual que al crear.
+// ── PUT — reagendar ───────────────────────────────────────────────────────────
 export async function PUT(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
@@ -86,7 +103,6 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (appointment_date < today)
       return NextResponse.json({ ok: false, message: "No se pueden agendar citas en fechas pasadas" }, { status: 400 });
 
-    // Conflictos del nuevo día, EXCLUYENDO esta misma cita
     const [existing] = await pool.query(
       `SELECT id_appointment, appointment_time, appointment_type FROM appointments
        WHERE appointment_date = ? AND id_appointment <> ?
@@ -114,14 +130,14 @@ export async function PUT(req: NextRequest, { params }: Params) {
       [appointment_date, appointment_time, id]
     );
 
-    const [rows] = await pool.query(
+    const [updatedRows] = await pool.query(
       `SELECT a.*, c.full_name, c.phone FROM appointments a
        JOIN Client c ON c.id_client = a.id_client
        WHERE a.id_appointment = ?`,
       [id]
     );
 
-    return NextResponse.json({ ok: true, data: (rows as unknown[])[0] });
+    return NextResponse.json({ ok: true, data: (updatedRows as unknown[])[0] });
   } catch (e) {
     console.error("[PUT /api/appointments/:id]", e);
     return NextResponse.json({ ok: false, message: "Error interno" }, { status: 500 });

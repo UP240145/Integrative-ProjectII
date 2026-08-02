@@ -76,12 +76,35 @@ export async function POST(req: NextRequest) {
     if (existingList.length > 0) {
       const existingOrder = existingList[0];
 
-      // Si la orden existente está cancelada, la reactivamos en vez de bloquear
+      // Si la orden existente está cancelada, la reactivamos y volvemos a descontar inventario
       if (existingOrder.status === "cancelada") {
-        await pool.query(
-          "UPDATE work_orders SET status = 'pendiente' WHERE id_work_order = ?",
-          [existingOrder.id_work_order]
+        const [qmRowsReact] = await pool.query(
+          "SELECT id_wood, calculated_quantity FROM quote_materials WHERE id_quote = ?",
+          [id_quote]
         );
+        const qmListReact = qmRowsReact as { id_wood: number; calculated_quantity: number }[];
+
+        const connReact = await pool.getConnection();
+        try {
+          await connReact.beginTransaction();
+          await connReact.query(
+            "UPDATE work_orders SET status = 'pendiente' WHERE id_work_order = ?",
+            [existingOrder.id_work_order]
+          );
+          for (const qm of qmListReact) {
+            await connReact.query(
+              "UPDATE Inventory SET stock_quantity = stock_quantity - ? WHERE id_wood = ?",
+              [Math.round(Number(qm.calculated_quantity)), qm.id_wood]
+            );
+          }
+          await connReact.commit();
+        } catch (err) {
+          await connReact.rollback();
+          connReact.release();
+          throw err;
+        }
+        connReact.release();
+
         const [rows] = await pool.query(
           `SELECT wo.id_work_order, wo.status, wo.updated_at, q.furniture_type, q.final_price, c.full_name
            FROM work_orders wo
@@ -97,11 +120,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, data: { id_work_order: existingOrder.id_work_order, alreadyExists: true } });
     }
 
-    const [result] = await pool.query(
-      "INSERT INTO work_orders (id_quote, status) VALUES (?, 'pendiente')",
+    // Descontar materiales del inventario al crear la work order
+    const [qmRows] = await pool.query(
+      "SELECT id_wood, calculated_quantity FROM quote_materials WHERE id_quote = ?",
       [id_quote]
     );
-    const insertId = (result as { insertId: number }).insertId;
+    const qmList = qmRows as { id_wood: number; calculated_quantity: number }[];
+
+    const conn = await pool.getConnection();
+    let insertId: number;
+    try {
+      await conn.beginTransaction();
+
+      const [result] = await conn.query(
+        "INSERT INTO work_orders (id_quote, status) VALUES (?, 'pendiente')",
+        [id_quote]
+      );
+      insertId = (result as { insertId: number }).insertId;
+
+      // Descontar cada material del inventario (puede quedar negativo)
+      for (const qm of qmList) {
+        await conn.query(
+          "UPDATE Inventory SET stock_quantity = stock_quantity - ? WHERE id_wood = ?",
+          [Math.round(Number(qm.calculated_quantity)), qm.id_wood]
+        );
+      }
+
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      conn.release();
+      throw err;
+    }
+    conn.release();
 
     const [rows] = await pool.query(
       `SELECT wo.id_work_order, wo.status, wo.updated_at, q.furniture_type, q.final_price, c.full_name
