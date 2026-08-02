@@ -17,14 +17,7 @@ function calculateMaterialM2(
   return Math.ceil(areaCm2 / 10000);
 }
 
-// Nombre de material en la cotización → id_wood en Inventory
-const MATERIAL_TO_WOOD_NAME: Record<string, string> = {
-  mdf:      "MDF",
-  melamina: "Melamina",
-  pino:     "Pino macizo",
-  roble:    "Roble",
-  cedro:    "Cedro",
-};
+// El material llega como el nombre exacto de la tabla Inventory (ej. "MDF", "Roble")
 
 // ── GET /api/quotes ───────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -96,7 +89,8 @@ export async function POST(req: NextRequest) {
 
     // Buscar el id_wood que corresponde al material de la cotización
     let idWood: number | null = null;
-    const woodName = material ? MATERIAL_TO_WOOD_NAME[String(material)] : null;
+    // Buscar el id_wood por nombre exacto (el frontend envía el nombre de la DB)
+    const woodName = material ? String(material) : null;
     if (woodName) {
       const [woodRows] = await conn.query(
         "SELECT id_wood FROM Inventory WHERE name = ? LIMIT 1",

@@ -13,7 +13,7 @@ type FurnitureType =
   | "bano"
   | "otro";
 
-type Material = "mdf" | "melamina" | "pino" | "roble" | "cedro";
+type Material = string; // cargado dinámicamente desde la DB
 
 type QuoteStatus = "pendiente" | "aceptada" ;
 
@@ -35,7 +35,7 @@ interface NewClientForm {
 
 interface QuoteForm {
   furnitureType: FurnitureType | "";
-  material: Material | "";
+  material: string; // id_wood como string
   width: string;
   height: string;
   depth: string;
@@ -58,13 +58,7 @@ const FURNITURE_LABELS: Record<FurnitureType, string> = {
   otro: "Otro",
 };
 
-const MATERIAL_LABELS: Record<Material, string> = {
-  mdf: "MDF",
-  melamina: "Melamina",
-  pino: "Pino macizo",
-  roble: "Roble",
-  cedro: "Cedro",
-};
+// Los materiales se cargan dinámicamente desde /api/inventory
 
 // Multiplicador de complejidad por tipo de mueble
 const FURNITURE_COMPLEXITY: Record<FurnitureType, number> = {
@@ -184,18 +178,20 @@ async function saveQuote(payload: {
   return json.data;
 }
 
-async function fetchMaterialPrice(material: Material): Promise<number> {
+// Materiales del inventario
+interface WoodOption { id_wood: number; name: string; price: number; stock_quantity: number; }
+
+async function fetchInventoryMaterials(): Promise<WoodOption[]> {
   try {
     const res = await fetch("/api/inventory");
     const json = await res.json();
-    const MATERIAL_TO_NAME: Record<Material, string> = {
-      mdf: "MDF", melamina: "Melamina", pino: "Pino macizo", roble: "Roble", cedro: "Cedro",
-    };
-    const name = MATERIAL_TO_NAME[material];
-    const item = (json.data ?? []).find((i: { name: string; price: number }) => i.name === name);
-    return item ? parseFloat(String(item.price)) : 0;
+    return (json.data ?? []).map((i: WoodOption) => ({
+      ...i,
+      price: parseFloat(String(i.price)),
+      stock_quantity: parseFloat(String(i.stock_quantity)),
+    }));
   } catch {
-    return 0;
+    return [];
   }
 }
 
@@ -565,8 +561,9 @@ export default function QuotePage() {
   const [quoteId, setQuoteId]                   = useState("");
   const [saved, setSaved]                       = useState(false);
   const [workOrderCreated, setWorkOrderCreated] = useState(false);
-  const [pricePerPlate, setPricePerPlate]       = useState(0);
-  const [loadingPrice, setLoadingPrice]         = useState(false);
+  const [inventoryMaterials, setInventoryMaterials] = useState<WoodOption[]>([]);
+  const [pricePerPlate, setPricePerPlate]           = useState(0);
+  const [loadingPrice, setLoadingPrice]             = useState(false);
   const [saving, setSaving]                     = useState(false);
   const [saveError, setSaveError]               = useState<string | null>(null);
   const [savedQuoteId, setSavedQuoteId]         = useState<number | null>(null);
@@ -575,14 +572,17 @@ export default function QuotePage() {
 
   useEffect(() => { setQuoteId(generateQuoteId()); }, []);
 
-  // Fetch price from DB when material changes
+  // Cargar todos los materiales del inventario al montar
+  useEffect(() => {
+    fetchInventoryMaterials().then(setInventoryMaterials);
+  }, []);
+
+  // Cuando cambia el material seleccionado, actualizar precio por placa
   useEffect(() => {
     if (!form.material) { setPricePerPlate(0); return; }
-    setLoadingPrice(true);
-    fetchMaterialPrice(form.material as Material)
-      .then(p => setPricePerPlate(p))
-      .finally(() => setLoadingPrice(false));
-  }, [form.material]);
+    const selected = inventoryMaterials.find(m => String(m.id_wood) === String(form.material));
+    setPricePerPlate(selected ? selected.price : 0);
+  }, [form.material, inventoryMaterials]);
 
   // Recalculate price whenever relevant fields change
   useEffect(() => {
@@ -624,10 +624,12 @@ export default function QuotePage() {
     setSaving(true);
     setSaveError(null);
     try {
+      // Resolver el nombre del material desde el id_wood seleccionado
+      const selectedMat = inventoryMaterials.find(m => String(m.id_wood) === String(form.material));
       const result = await saveQuote({
         id_client:       selectedClient.id_client,
         furniture_type:  form.furnitureType,
-        material:        form.material,
+        material:        selectedMat ? selectedMat.name : form.material,
         width:           parseFloat(form.width),
         height:          parseFloat(form.height),
         depth:           parseFloat(form.depth),
@@ -686,9 +688,16 @@ export default function QuotePage() {
               </select>
             </Field>
             <Field label="Material">
-              <select style={selectStyle} value={form.material} onChange={(e) => update("material", e.target.value as Material | "")}>
+              <select style={selectStyle} value={form.material} onChange={(e) => update("material", e.target.value)}>
                 <option value="">Seleccionar...</option>
-                {Object.entries(MATERIAL_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                {inventoryMaterials.length === 0 && (
+                  <option disabled value="">Cargando materiales...</option>
+                )}
+                {inventoryMaterials.map((m) => (
+                  <option key={m.id_wood} value={String(m.id_wood)}>
+                    {m.name} — ${parseFloat(String(m.price)).toFixed(2)}/placa · {m.stock_quantity} en stock
+                  </option>
+                ))}
               </select>
             </Field>
           </div>
