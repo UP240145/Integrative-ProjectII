@@ -82,6 +82,7 @@ CREATE TABLE quote_materials (
     FOREIGN KEY (id_quote) REFERENCES Quote(id_quote),
     FOREIGN KEY (id_wood) REFERENCES Inventory(id_wood)
 );
+```
 4. Librerías y Dependencias Empleadas
 El proyecto utiliza las siguientes librerías principales para su funcionamiento:
 
