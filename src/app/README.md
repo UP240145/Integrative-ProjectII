@@ -23,7 +23,7 @@ El proyecto móvil utiliza las siguientes librerías y herramientas principales:
 * **`expo`**: Plataforma y framework para la creación y ejecución rápida de aplicaciones multiplataforma.
 * **`react`** / **`react-native`**: Biblioteca base para la construcción de interfaces de usuario mediante componentes nativos.
 * **`react-navigation`**: Manejo de rutas, navegación y flujo entre las pantallas de la aplicación.
-* **`axios`** o **`fetch`**: Comunicación HTTP para la integración con los endpoints del backend y la API REST.
+* **`fetch`**: Comunicación HTTP para la integración con los endpoints del backend y la API REST.
 
 ---
 
