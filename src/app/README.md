@@ -11,7 +11,9 @@ El código fuente de este módulo se encuentra estructurado en el repositorio ex
 ---
 
 ## 2. Capturas de Pantalla de la Interfaz en Ejecución
+Pagina Principal
 ![Pagina Principal](./principal.png)
+Generacion de cotizaciones
 ![Generacion de cotizaciones](./cotizaciones.png)
 
 ---
