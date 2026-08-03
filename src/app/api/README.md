@@ -12,7 +12,7 @@ El código fuente de este módulo se encuentra estructurado para excluir carpeta
 ---
 
 ## 2. Diagrama de la Base de Datos (Modelo Relacional)
-![Diagrama ER](./diagrama.png)
+![Diagrama ER](diagrama.png)
 
 ---
 
