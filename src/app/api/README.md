@@ -1,4 +1,3 @@
-```md
 # Sistema Esencia Madera - Backend / API
 
 ## Descripción
@@ -12,7 +11,7 @@ El código fuente de este módulo se encuentra estructurado para excluir carpeta
 ---
 
 ## 2. Diagrama de la Base de Datos (Modelo Relacional)
-![Diagrama ER](./diagrama.png)
+<img src="[https://raw.githubusercontent.com/UP240145/Integrative-ProjectII/main/src/app/api/diagrama.png](https://raw.githubusercontent.com/UP240145/Integrative-ProjectII/main/src/app/api/diagrama.png)" alt="Diagrama ER" width="100%">
 
 ---
 
@@ -84,49 +83,29 @@ CREATE TABLE quote_materials (
     FOREIGN KEY (id_quote) REFERENCES Quote(id_quote),
     FOREIGN KEY (id_wood) REFERENCES Inventory(id_wood)
 );
-
-```
-
----
-
-## 4. Librerías y Dependencias Empleadas
-
+4. Librerías y Dependencias Empleadas
 El proyecto utiliza las siguientes librerías principales para su funcionamiento:
 
-* **`express`**: Framework minimalista para la creación de rutas y manejo del servidor HTTP en Node.js.
-* **`mysql2`**: Conector optimizado para la comunicación asíncrona con la base de datos relacional MySQL.
-* **`bcryptjs`**: Utilizado para el cifrado seguro de contraseñas de usuario.
-* **`dotenv`**: Manejo seguro de variables de entorno globales.
-* **`jose`**: Implementación para la generación y validación de tokens de sesión/autenticación.
+express: Framework minimalista para la creación de rutas y manejo del servidor HTTP en Node.js.
 
----
+mysql2: Conector optimizado para la comunicación asíncrona con la base de datos relacional MySQL.
 
-## 5. Comandos de Instalación y Ejecución
+bcryptjs: Utilizado para el cifrado seguro de contraseñas de usuario.
 
-### Instalación de dependencias
+dotenv: Manejo seguro de variables de entorno globales.
 
+jose: Implementación para la generación y validación de tokens de sesión/autenticación.
+
+5. Comandos de Instalación y Ejecución
+Instalación de dependencias
 Ejecuta el siguiente comando en la terminal dentro de la carpeta del backend:
 
-```bash
+Bash
 npm install
-
-```
-
-### Ejecución en entorno de desarrollo
-
+Ejecución en entorno de desarrollo
 Para iniciar el servidor local con recarga automática:
 
-```bash
+Bash
 npm run dev
-
-```
-
----
-
-## 6. Ruta del README.md Correspondiente
-
-* **Ubicación exacta del archivo:** `src\app\api\README.md`
-
-```
-
-```
+6. Ruta del README.md Correspondiente
+Ubicación exacta del archivo: src\app\api\README.md
