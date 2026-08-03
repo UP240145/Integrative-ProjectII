@@ -99,14 +99,15 @@ jose: Implementación para la generación y validación de tokens de sesión/aut
 Instalación de dependencias
 Ejecuta el siguiente comando en la terminal dentro de la carpeta del backend:
 
-Bash
+```bash
 npm install
+```
 Ejecución en entorno de desarrollo
 Para iniciar el servidor local con recarga automática:
 
-Bash
+```bash
 npm run dev
-
+```
 6. Ruta del README.md Correspondiente
 Ubicación exacta del archivo: src\app\api\README.md
 
