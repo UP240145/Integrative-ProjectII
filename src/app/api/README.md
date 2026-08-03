@@ -11,7 +11,7 @@ El código fuente de este módulo se encuentra estructurado para excluir carpeta
 ---
 
 ## 2. Diagrama de la Base de Datos (Modelo Relacional)
-<img src="[https://raw.githubusercontent.com/UP240145/Integrative-ProjectII/main/src/app/api/diagrama.png](https://raw.githubusercontent.com/UP240145/Integrative-ProjectII/main/src/app/api/diagrama.png)" alt="Diagrama ER" width="100%">
+![Diagrama ER](./diagrama.png)
 ---
 
 ## 3. Scripts de Creación de Tablas (SQL)
