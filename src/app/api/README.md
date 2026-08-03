@@ -12,46 +12,8 @@ El código fuente de este módulo se encuentra estructurado para excluir carpeta
 ---
 
 ## 2. Diagrama de la Base de Datos (Modelo Relacional)
-```text
-+-----------------------+           +-----------------------+           +-----------------------+           +-----------------------+
-|      appointments     |           |         Client        |           |         Quote         |           |      work_orders      |
-+-----------------------+           +-----------------------+           +-----------------------+           +-----------------------+
-| PK id_appointment     |           | PK id_client          |           | PK id_quote           |           | PK id_work_order      |
-| FK id_client          |--------o<-| full_name             |--------o<-| FK id_client          |--------o<-| FK id_quote           |
-| appointment_type      |           | email                 |           | furniture_type        |           | status                |
-| appointment_date      |           | address               |           | width                 |           | updated_at            |
-| appointment_time      |           | phone                 |           | height                |           |                       |
-| address               |           | created_at            |           | depth                 |           +-----------------------+
-| notes                 |           +-----------------------+           | calculated_cost       |
-+-----------------------+                                               | final_price           |
-                                                                        | status                |
-                                                                        | created_at            |
-                                                                        +-----------------------+
-                                                                                    |
-                                                                                    |
-+-----------------------+                                                           |
-|          User         |                                                           |
-+-----------------------+                                                           v
-| PK id_user            |                                               +-----------------------+
-| email                 |                                               |    quote_materials    |
-| password              |                                               +-----------------------+
-| created_at            |                                               | PK id_quote_materials |
-+-----------------------+                                               | FK id_quote           |
-                                                                        | FK id_wood            |----o
-                                                                        | calculated_quantity   |    |
-                                                                        +-----------------------+    |
-                                                                                                     |
-                                                                        +-----------------------+    |
-                                                                        |       Inventory       |<---o
-                                                                        +-----------------------+
-                                                                        | PK id_wood            |
-                                                                        | name                  |
-                                                                        | stock_quantity        |
-                                                                        | price                 |
-                                                                        | min_stock_alert       |
-                                                                        +-----------------------+
+![Diagrama e r](./diagrama.png)
 
-```
 
 ---
 
